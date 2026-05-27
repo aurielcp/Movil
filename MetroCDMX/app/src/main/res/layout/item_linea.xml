@@ -1,27 +1,73 @@
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
-    android:elevation="4dp"
-    android:radius="10dp">
+    android:layout_margin="6dp"
+    app:cardElevation="2dp"
+    app:cardCornerRadius="12dp"
+    app:cardBackgroundColor="@color/tarjeta">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="16dp"
-        android:orientation="vertical">
+        android:orientation="horizontal"
+        android:padding="14dp"
+        android:gravity="center_vertical">
 
+        <!-- Círculo de color de la línea -->
         <TextView
-            android:id="@+id/tvNombreLinea"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="18sp"
+            android:id="@+id/tvBadge"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:gravity="center"
+            android:textColor="@color/white"
+            android:textSize="14sp"
             android:textStyle="bold" />
 
+        <!-- Barra lateral de color -->
+        <View
+            android:id="@+id/barraColor"
+            android:layout_width="4dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp" />
+
+        <!-- Nombre y km -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvNombreLinea"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/texto_primario" />
+
+            <TextView
+                android:id="@+id/tvKm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/texto_secundario"
+                android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <!-- Chip de estado -->
         <TextView
             android:id="@+id/tvEstadoLinea"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Estado: " />
+            android:padding="6dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:textSize="11sp"
+            android:maxLines="1" />
+
     </LinearLayout>
 </androidx.cardview.widget.CardView>

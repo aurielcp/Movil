@@ -1,3 +1,7 @@
 <resources>
-    <string name="app_name">MetroCDMX</string>
+    <string name="app_name">Metro CDMX</string>
+    <string name="btn_actualizar">Actualizar</string>
+    <string name="cargando">Cargando líneas…</string>
+    <string name="error_red">Sin conexión. Revisa tu internet.</string>
+    <string name="ver_estaciones">Ver estaciones</string>
 </resources>
