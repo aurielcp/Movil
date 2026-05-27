@@ -12,13 +12,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
-import retrofit2.Retrofit;
-import retrofit2.converter.gson.GsonConverterFactory;
+import android.widget.ListView;
+import android.widget.ArrayAdapter;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -29,16 +25,12 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvError, tvStatLineas, tvStatKm;
     private EditText etBuscar;
 
-    // Orden oficial de las 12 líneas
-    private static final List<String> ORDEN = Arrays.asList(
-            "L1","L2","L3","L4","L5","L6","L7","L8","L9","LA","LB","L12"
-    );
-
     @Override
-    protected void onCreate(Bundle si) {
-        super.onCreate(si);
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Inicialización de vistas
         rv            = findViewById(R.id.miRecyclerView);
         layoutLoading = findViewById(R.id.layoutLoading);
         layoutStats   = findViewById(R.id.layoutStats);
@@ -48,70 +40,32 @@ public class MainActivity extends AppCompatActivity {
         etBuscar      = findViewById(R.id.etBuscar);
 
         rv.setLayoutManager(new LinearLayoutManager(this));
+
+        // Uso de lambda para el clic de las líneas
         adapter = new LineaAdapter(new ArrayList<>(), this::mostrarDetalle);
         rv.setAdapter(adapter);
 
-        // Búsqueda en tiempo real
         etBuscar.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            public void onTextChanged(CharSequence s, int a, int b, int c) { filtrar(s.toString()); }
             public void afterTextChanged(Editable s) {}
-            public void onTextChanged(CharSequence s, int a, int b, int c) {
-                filtrar(s.toString());
-            }
         });
 
-        findViewById(R.id.btnActualizar).setOnClickListener(v -> consultarApi());
-        consultarApi();
+        findViewById(R.id.btnActualizar).setOnClickListener(v -> cargarDatosLocales());
+
+        cargarDatosLocales();
     }
 
-    private void consultarApi() {
+    private void cargarDatosLocales() {
+        // Aseguramos la visibilidad correcta al cargar
         layoutLoading.setVisibility(View.VISIBLE);
         layoutStats.setVisibility(View.GONE);
         tvError.setVisibility(View.GONE);
         rv.setVisibility(View.GONE);
 
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("https://apimetro.dev/")
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
-
-        MetroApiService service = retrofit.create(MetroApiService.class);
-
-        service.getLineas().enqueue(new Callback<List<Linea>>() {
-            @Override
-            public void onResponse(Call<List<Linea>> call, Response<List<Linea>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    // Ordenar según el orden oficial de líneas
-                    List<Linea> ordenadas = new ArrayList<>();
-                    List<Linea> cuerpo = response.body();
-                    for (String key : ORDEN) {
-                        for (Linea l : cuerpo) {
-                            if (key.equals(l.numComercial)) {
-                                ordenadas.add(l);
-                                break;
-                            }
-                        }
-                    }
-                    // Si la API devolvió líneas que no están en ORDEN, las agregamos al final
-                    for (Linea l : cuerpo) {
-                        if (!ORDEN.contains(l.numComercial)) {
-                            ordenadas.add(l);
-                        }
-                    }
-                    todasLineas = ordenadas;
-                    actualizarUI(todasLineas);
-                } else {
-                    mostrarError("Respuesta inválida del servidor (código " + response.code() + ")");
-                    cargarFallback();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<List<Linea>> call, Throwable t) {
-                mostrarError("Sin conexión: " + t.getMessage());
-                cargarFallback();
-            }
-        });
+        // Cargamos los datos desde el repositorio central
+        todasLineas = MetroRepository.getDatosLocales();
+        actualizarUI(todasLineas);
     }
 
     private void actualizarUI(List<Linea> lista) {
@@ -122,13 +76,13 @@ public class MainActivity extends AppCompatActivity {
         tvStatLineas.setText(lista.size() + " líneas en la red");
         tvStatKm.setText(String.format("%.0f km totales", totalKm));
 
+        // Cambiamos visibilidad una vez cargado
         layoutLoading.setVisibility(View.GONE);
         layoutStats.setVisibility(View.VISIBLE);
         rv.setVisibility(View.VISIBLE);
     }
 
     private void filtrar(String query) {
-        if (todasLineas.isEmpty()) return;
         String q = query.toLowerCase().trim();
         List<Linea> resultado = new ArrayList<>();
         for (Linea l : todasLineas) {
@@ -141,58 +95,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void mostrarDetalle(Linea l) {
-        String nombre = nombreLegible(l.numComercial);
-        String estado = l.existe ? "✅ En servicio" : "🚫 Sin servicio";
-        String km     = l.longitudKm > 0
-                ? String.format("%.1f km", l.longitudKm)
-                : "No disponible";
-        String anio   = l.anioInauguracion > 0
-                ? String.valueOf(l.anioInauguracion)
-                : "No disponible";
+        String estaciones = (l.estaciones != null && !l.estaciones.isEmpty())
+                ? String.join(", ", l.estaciones)
+                : "Datos no disponibles";
 
         new AlertDialog.Builder(this)
-                .setTitle(nombre)
-                .setMessage(
-                        "Estado: "        + estado + "\n" +
-                                "Longitud: "      + km     + "\n" +
-                                "Inauguración: "  + anio
-                )
-                .setPositiveButton("Ver créditos",
-                        (d, w) -> startActivity(new Intent(this, CreditosActivity.class)))
+                .setTitle("Línea " + l.numComercial.replace("L", ""))
+                .setMessage("Estado: " + (l.existe ? "En servicio" : "Sin servicio") +
+                        "\nLongitud: " + l.longitudKm + " km" +
+                        "\nEstaciones: " + estaciones)
+                .setPositiveButton("Ver créditos", (d, w) -> startActivity(new Intent(this, CreditosActivity.class)))
                 .setNegativeButton("Cerrar", null)
                 .show();
-    }
-
-    private void mostrarError(String msg) {
-        tvError.setText("⚠ " + msg);
-        tvError.setVisibility(View.VISIBLE);
-        layoutLoading.setVisibility(View.GONE);
-    }
-
-    private void cargarFallback() {
-        todasLineas = new ArrayList<>(Arrays.asList(
-                new Linea("L1",  "Observatorio–Pantitlán",          18.5, 1969, true),
-                new Linea("L2",  "Cuatro Caminos–Tasqueña",         23.8, 1970, true),
-                new Linea("L3",  "Indios Verdes–Universidad",       23.2, 1970, true),
-                new Linea("L4",  "Martín Carrera–Santa Anita",      10.9, 1981, true),
-                new Linea("L5",  "Politécnico–Pantitlán",           19.2, 1981, true),
-                new Linea("L6",  "El Rosario–Martín Carrera",       17.4, 1983, true),
-                new Linea("L7",  "El Rosario–Barranca del Muerto",  19.8, 1984, true),
-                new Linea("L8",  "Garibaldi–Constitución de 1917",  19.3, 1994, true),
-                new Linea("L9",  "Tacubaya–Pantitlán",              14.7, 1987, true),
-                new Linea("LA",  "Pantitlán–La Paz",                17.3, 1991, true),
-                new Linea("LB",  "Buenavista–Ciudad Azteca",        23.7, 1999, true),
-                new Linea("L12", "Mixcoac–Tláhuac",                 24.7, 2012, true)
-        ));
-        actualizarUI(todasLineas);
-    }
-
-    private String nombreLegible(String num) {
-        switch (num) {
-            case "LA":  return "Línea A";
-            case "LB":  return "Línea B";
-            case "L12": return "Línea 12";
-            default:    return "Línea " + num.replace("L", "");
-        }
     }
 }

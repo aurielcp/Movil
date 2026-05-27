@@ -19,7 +19,7 @@
         android:id="@+id/tvNombre"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Desarrollado por: Uriel"
+        android:text="Uriel Castro"
         android:textSize="20sp" />
 
     <TextView
