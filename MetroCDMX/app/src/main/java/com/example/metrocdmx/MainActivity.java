@@ -85,9 +85,23 @@ public class MainActivity extends AppCompatActivity {
     private void filtrar(String query) {
         String q = query.toLowerCase().trim();
         List<Linea> resultado = new ArrayList<>();
+
         for (Linea l : todasLineas) {
-            String texto = (l.numComercial + " " + l.nombreOficial).toLowerCase();
-            if (q.isEmpty() || texto.contains(q)) {
+            // Creamos una variable auxiliar para verificar si la estación está en esta línea
+            boolean contieneEstacion = false;
+            if (l.estaciones != null) {
+                for (String estacion : l.estaciones) {
+                    if (estacion.toLowerCase().contains(q)) {
+                        contieneEstacion = true;
+                        break; // Ya encontramos la estación, no necesitamos seguir buscando en esta línea
+                    }
+                }
+            }
+
+            // El filtro ahora incluye: Nombre oficial, Número o si contiene la estación
+            String textoLinea = (l.numComercial + " " + l.nombreOficial).toLowerCase();
+
+            if (q.isEmpty() || textoLinea.contains(q) || contieneEstacion) {
                 resultado.add(l);
             }
         }
@@ -95,17 +109,35 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void mostrarDetalle(Linea l) {
-        String estaciones = (l.estaciones != null && !l.estaciones.isEmpty())
-                ? String.join(", ", l.estaciones)
-                : "Datos no disponibles";
+        if (l.estaciones == null || l.estaciones.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Línea " + l.numComercial)
+                    .setMessage("No hay datos de estaciones.")
+                    .setNegativeButton("Cerrar", null)
+                    .show();
+            return;
+        }
+
+        // Creamos un ListView dinámico para el AlertDialog
+        ListView listView = new ListView(this);
+
+        // Usamos el layout 'item_estacion' que acabamos de crear
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this, R.layout.item_estacion, R.id.tvNombreEstacion, l.estaciones);
+
+        listView.setAdapter(adapter);
 
         new AlertDialog.Builder(this)
-                .setTitle("Línea " + l.numComercial.replace("L", ""))
-                .setMessage("Estado: " + (l.existe ? "En servicio" : "Sin servicio") +
-                        "\nLongitud: " + l.longitudKm + " km" +
-                        "\nEstaciones: " + estaciones)
-                .setPositiveButton("Ver créditos", (d, w) -> startActivity(new Intent(this, CreditosActivity.class)))
-                .setNegativeButton("Cerrar", null)
+                .setTitle("Estaciones - " + l.numComercial.replace("L", ""))
+                .setView(listView)
+                // Cambiado el botón positivo a "Cerrar" (antes Créditos)
+                .setPositiveButton("Cerrar", (d, w) -> {
+                    // Aquí, si necesitas que el botón de cerrar también abra los créditos,
+                    // mantén la llamada a startActivity, o simplemente déjalo vacío para cerrar.
+                    startActivity(new Intent(this, CreditosActivity.class));
+                })
+                // Cambiado el botón negativo a "Regresar" (antes Cerrar)
+                .setNegativeButton("Regresar", null)
                 .show();
     }
 }
