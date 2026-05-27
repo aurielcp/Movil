@@ -2,8 +2,6 @@ package com.example.metrocdmx;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
@@ -13,12 +11,14 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Scanner;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -29,8 +29,10 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvError, tvStatLineas, tvStatKm;
     private EditText etBuscar;
 
-    private static final String API_URL =
-            "https://apimetro.dev/movilidad/METRO/linea";
+    // Orden oficial de las 12 líneas
+    private static final List<String> ORDEN = Arrays.asList(
+            "L1","L2","L3","L4","L5","L6","L7","L8","L9","LA","LB","L12"
+    );
 
     @Override
     protected void onCreate(Bundle si) {
@@ -52,25 +54,14 @@ public class MainActivity extends AppCompatActivity {
         // Búsqueda en tiempo real
         etBuscar.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
-            public void onTextChanged(CharSequence s, int a, int b, int c) { filtrar(s.toString()); }
             public void afterTextChanged(Editable s) {}
+            public void onTextChanged(CharSequence s, int a, int b, int c) {
+                filtrar(s.toString());
+            }
         });
 
         findViewById(R.id.btnActualizar).setOnClickListener(v -> consultarApi());
-
         consultarApi();
-    }
-
-    private void filtrar(String query) {
-        List<Linea> resultado = new ArrayList<>();
-        String q = query.toLowerCase().trim();
-        for (Linea l : todasLineas) {
-            String nombre = l.numComercial + " " + l.nombreOficial;
-            if (q.isEmpty() || nombre.toLowerCase().contains(q)) {
-                resultado.add(l);
-            }
-        }
-        adapter.setDatos(resultado);
     }
 
     private void consultarApi() {
@@ -79,109 +70,129 @@ public class MainActivity extends AppCompatActivity {
         tvError.setVisibility(View.GONE);
         rv.setVisibility(View.GONE);
 
-        new Thread(() -> {
-            try {
-                URL url = new URL(API_URL);
-                Scanner scanner = new Scanner(url.openStream());
-                String respuesta = scanner.useDelimiter("\\A").next();
-                scanner.close();
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl("https://apimetro.dev/")
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
 
-                JSONArray arr = new JSONArray(respuesta);
-                List<Linea> lista = new ArrayList<>();
-                double totalKm = 0;
+        MetroApiService service = retrofit.create(MetroApiService.class);
 
-                // Orden oficial de las líneas
-                String[] orden = {"L1","L2","L3","L4","L5","L6","L7","L8","L9","LA","LB","L12"};
-
-                for (String key : orden) {
-                    for (int i = 0; i < arr.length(); i++) {
-                        JSONObject obj = arr.getJSONObject(i);
-                        String num = obj.optString("num_comercial", "");
-                        if (!num.equals(key)) continue;
-
-                        double km = obj.optDouble("longitud_km", 0);
-                        int anio = obj.optInt("anio_inauguracion", 0);
-                        boolean existe = obj.optBoolean("existe", true);
-                        String nombre = obj.optString("nombre_oficial", num);
-                        lista.add(new Linea(num, nombre, km, anio, existe));
-                        totalKm += km;
-                        break;
+        service.getLineas().enqueue(new Callback<List<Linea>>() {
+            @Override
+            public void onResponse(Call<List<Linea>> call, Response<List<Linea>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    // Ordenar según el orden oficial de líneas
+                    List<Linea> ordenadas = new ArrayList<>();
+                    List<Linea> cuerpo = response.body();
+                    for (String key : ORDEN) {
+                        for (Linea l : cuerpo) {
+                            if (key.equals(l.numComercial)) {
+                                ordenadas.add(l);
+                                break;
+                            }
+                        }
                     }
-                }
-
-                todasLineas = lista;
-                final double kmFinal = totalKm;
-                final int total = lista.size();
-
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    adapter.setDatos(new ArrayList<>(todasLineas));
-                    tvStatLineas.setText(total + " líneas en la red");
-                    tvStatKm.setText(String.format("%.0f km totales", kmFinal));
-                    layoutLoading.setVisibility(View.GONE);
-                    layoutStats.setVisibility(View.VISIBLE);
-                    rv.setVisibility(View.VISIBLE);
-                });
-
-            } catch (Exception e) {
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    layoutLoading.setVisibility(View.GONE);
-                    tvError.setVisibility(View.VISIBLE);
-                    tvError.setText("⚠ " + getString(R.string.error_red));
+                    // Si la API devolvió líneas que no están en ORDEN, las agregamos al final
+                    for (Linea l : cuerpo) {
+                        if (!ORDEN.contains(l.numComercial)) {
+                            ordenadas.add(l);
+                        }
+                    }
+                    todasLineas = ordenadas;
+                    actualizarUI(todasLineas);
+                } else {
+                    mostrarError("Respuesta inválida del servidor (código " + response.code() + ")");
                     cargarFallback();
-                });
+                }
             }
-        }).start();
+
+            @Override
+            public void onFailure(Call<List<Linea>> call, Throwable t) {
+                mostrarError("Sin conexión: " + t.getMessage());
+                cargarFallback();
+            }
+        });
+    }
+
+    private void actualizarUI(List<Linea> lista) {
+        double totalKm = 0;
+        for (Linea l : lista) totalKm += l.longitudKm;
+
+        adapter.setDatos(lista);
+        tvStatLineas.setText(lista.size() + " líneas en la red");
+        tvStatKm.setText(String.format("%.0f km totales", totalKm));
+
+        layoutLoading.setVisibility(View.GONE);
+        layoutStats.setVisibility(View.VISIBLE);
+        rv.setVisibility(View.VISIBLE);
+    }
+
+    private void filtrar(String query) {
+        if (todasLineas.isEmpty()) return;
+        String q = query.toLowerCase().trim();
+        List<Linea> resultado = new ArrayList<>();
+        for (Linea l : todasLineas) {
+            String texto = (l.numComercial + " " + l.nombreOficial).toLowerCase();
+            if (q.isEmpty() || texto.contains(q)) {
+                resultado.add(l);
+            }
+        }
+        adapter.setDatos(resultado);
     }
 
     private void mostrarDetalle(Linea l) {
-        String nombre = "Línea " + l.numComercial.replace("L", "");
-        if (l.numComercial.equals("LA")) nombre = "Línea A";
-        if (l.numComercial.equals("LB")) nombre = "Línea B";
-
+        String nombre = nombreLegible(l.numComercial);
         String estado = l.existe ? "✅ En servicio" : "🚫 Sin servicio";
-        String km = l.longitudKm > 0 ? String.format("%.1f km", l.longitudKm) : "—";
-        String anio = l.anioInauguracion > 0 ? String.valueOf(l.anioInauguracion) : "—";
-
-        String msg = "Estado: " + estado +
-                "\nLongitud: " + km +
-                "\nInauguración: " + anio;
+        String km     = l.longitudKm > 0
+                ? String.format("%.1f km", l.longitudKm)
+                : "No disponible";
+        String anio   = l.anioInauguracion > 0
+                ? String.valueOf(l.anioInauguracion)
+                : "No disponible";
 
         new AlertDialog.Builder(this)
                 .setTitle(nombre)
-                .setMessage(msg)
-                .setPositiveButton("Ver créditos", (d, w) -> {
-                    startActivity(new Intent(this, CreditosActivity.class));
-                })
+                .setMessage(
+                        "Estado: "        + estado + "\n" +
+                                "Longitud: "      + km     + "\n" +
+                                "Inauguración: "  + anio
+                )
+                .setPositiveButton("Ver créditos",
+                        (d, w) -> startActivity(new Intent(this, CreditosActivity.class)))
                 .setNegativeButton("Cerrar", null)
                 .show();
     }
 
+    private void mostrarError(String msg) {
+        tvError.setText("⚠ " + msg);
+        tvError.setVisibility(View.VISIBLE);
+        layoutLoading.setVisibility(View.GONE);
+    }
+
     private void cargarFallback() {
-        todasLineas = new ArrayList<>();
-        Object[][] datos = {
-                {"L1", "Observatorio–Pantitlán", 18.5, 1969},
-                {"L2", "Cuatro Caminos–Tasqueña", 23.8, 1970},
-                {"L3", "Indios Verdes–Universidad", 23.2, 1970},
-                {"L4", "Martín Carrera–Santa Anita", 10.9, 1981},
-                {"L5", "Politécnico–Pantitlán", 19.2, 1981},
-                {"L6", "El Rosario–Martín Carrera", 17.4, 1983},
-                {"L7", "El Rosario–Barranca del Muerto", 19.8, 1984},
-                {"L8", "Garibaldi–Constitución de 1917", 19.3, 1994},
-                {"L9", "Tacubaya–Pantitlán", 14.7, 1987},
-                {"LA", "Pantitlán–La Paz", 17.3, 1991},
-                {"LB", "Buenavista–Ciudad Azteca", 23.7, 1999},
-                {"L12","Mixcoac–Tláhuac", 24.7, 2012},
-        };
-        for (Object[] d : datos) {
-            todasLineas.add(new Linea(
-                    (String) d[0], (String) d[1],
-                    (double) d[2], (int) d[3], true
-            ));
+        todasLineas = new ArrayList<>(Arrays.asList(
+                new Linea("L1",  "Observatorio–Pantitlán",          18.5, 1969, true),
+                new Linea("L2",  "Cuatro Caminos–Tasqueña",         23.8, 1970, true),
+                new Linea("L3",  "Indios Verdes–Universidad",       23.2, 1970, true),
+                new Linea("L4",  "Martín Carrera–Santa Anita",      10.9, 1981, true),
+                new Linea("L5",  "Politécnico–Pantitlán",           19.2, 1981, true),
+                new Linea("L6",  "El Rosario–Martín Carrera",       17.4, 1983, true),
+                new Linea("L7",  "El Rosario–Barranca del Muerto",  19.8, 1984, true),
+                new Linea("L8",  "Garibaldi–Constitución de 1917",  19.3, 1994, true),
+                new Linea("L9",  "Tacubaya–Pantitlán",              14.7, 1987, true),
+                new Linea("LA",  "Pantitlán–La Paz",                17.3, 1991, true),
+                new Linea("LB",  "Buenavista–Ciudad Azteca",        23.7, 1999, true),
+                new Linea("L12", "Mixcoac–Tláhuac",                 24.7, 2012, true)
+        ));
+        actualizarUI(todasLineas);
+    }
+
+    private String nombreLegible(String num) {
+        switch (num) {
+            case "LA":  return "Línea A";
+            case "LB":  return "Línea B";
+            case "L12": return "Línea 12";
+            default:    return "Línea " + num.replace("L", "");
         }
-        adapter.setDatos(new ArrayList<>(todasLineas));
-        layoutStats.setVisibility(View.VISIBLE);
-        rv.setVisibility(View.VISIBLE);
-        tvStatLineas.setText("12 líneas en la red");
-        tvStatKm.setText("232 km totales (aprox.)");
     }
 }
