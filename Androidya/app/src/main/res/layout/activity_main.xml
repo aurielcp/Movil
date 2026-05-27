@@ -1,0 +1,14 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <EditText android:id="@+id/etDatos" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Ingresa texto o datos" />
+
+    <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Grabar Interno (Ejer 14)" android:onClick="grabarInterno" />
+    <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Grabar SD (Ejer 15)" android:onClick="grabarSD" />
+    <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Grabar SQLite (Ejer 16)" android:onClick="grabarSQLite" />
+
+    <TextView android:id="@+id/tvAutor" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Uriel Castro - Ingeniería en Computación" android:layout_marginTop="20dp" />
+</LinearLayout>
