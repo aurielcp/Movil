@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Colores oficiales de líneas -->
+    <color name="linea1">#E9068C</color>
+    <color name="linea2">#0C4FAB</color>
+    <color name="linea3">#A7A823</color>
+    <color name="linea4">#74C4E2</color>
+    <color name="linea5">#FAAE28</color>
+    <color name="linea6">#C6A84A</color>
+    <color name="linea7">#F18A1D</color>
+    <color name="linea8">#00AB68</color>
+    <color name="linea9">#6B3F22</color>
+    <color name="lineaA">#8C1464</color>
+    <color name="lineaB">#BDBCBC</color>
+    <color name="linea12">#C8961E</color>
+
+    <!-- UI general -->
+    <color name="fondo">#F5F5F5</color>
+    <color name="tarjeta">#FFFFFF</color>
+    <color name="texto_primario">#1A1A1A</color>
+    <color name="texto_secundario">#666666</color>
+    <color name="estado_normal">#E8F5E9</color>
+    <color name="estado_normal_texto">#2E7D32</color>
+    <color name="estado_parcial">#FFF8E1</color>
+    <color name="estado_parcial_texto">#F57F17</color>
+    <color name="estado_sin">#FFEBEE</color>
+    <color name="estado_sin_texto">#C62828</color>
+</resources>
